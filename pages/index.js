@@ -43,7 +43,7 @@ export default function Home({roster}) {
         </h1>
 
         <p className={styles.description}>
-          Let's do our part to keep our kitchen tidy and clean!
+          Lets do our part to keep our kitchen tidy and clean!
         </p>
 
         <p> {assignedRooms.join(", ")}</p>
