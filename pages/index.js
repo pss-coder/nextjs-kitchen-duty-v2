@@ -1,122 +1,270 @@
-import Head from 'next/head'
-import DutyCard from '../components/DutyCard'
-import SettingModal from '../components/SettingModal'
-import styles from '../styles/Home.module.css'
-
 import { useState } from "react";
+import { DateTime } from "luxon";
 
-import {data} from "../lib/roster";
+import styles from '../styles/Home.module.css'
+import RosterSettings from "../components/RosterSettings";
+
+import jsPDF from "jspdf";
+import autoTable from 'jspdf-autotable';
+import RosterCard from "../components/RosterCard";
+
+/*** 
+ 
+Input:
+Room numbers
+Duties
 
 
+Process:
 
-//import { PrismaClient } from '@prisma/client';
+1. MapRoomsToDuty(rooms, duties, number of weeks)
+        - map each duty to each room
+            - repeat for number of weeks
+Output:
+Table View of room # assigned to duties each week
+*/
 
-// const prisma = new PrismaClient()
+// default values
+var rooms = [1, 2, 3,5,6, 7, 8, 9, 10, 11, 12]
+var duties = ["Disposal_Waste", "Plastic_Waste", "Dishes_and_Surfaces", "Floor_Cleaning", "Metal_and_Glass"]
 
-export async function getServerSideProps() {
-  const roster = data;
-  return {
-    props: {
-      roster
+const headers = ["Week", ...duties]
+
+// global variable to track rooms index of duty assigned
+var counter = 0;
+
+function MapRoomsToDuty(rooms, duties) {
+    const assignedDuty = new Map();
+
+    // TODO: Provide shuffle capability when rooms.length / duties.length == 2
+    duties.forEach(duty => {
+        if (counter >= rooms.length) {
+            counter = 0;    
+        }
+        assignedDuty.set(duty, rooms[counter])
+        counter++;
+    });
+
+    return assignedDuty;
+}
+
+function getAssignedDutyby(numberOfWeeks) {
+    var i = 0;
+    var rosters = []
+    
+    // assign Duty starts this week onwards -> so get this week info
+    // every iteration, get following week's info
+    const thisWeekInfo = getThisWeekInfo();
+    var weekNumber = thisWeekInfo.weekNumber;
+    var year = thisWeekInfo.year;
+
+    while(i != numberOfWeeks) {
+        // for every iteration, add to week number and year
+        const weekInfo = getWeekInfoBy(weekNumber, year);
+        var assignedDuties = Object.fromEntries(MapRoomsToDuty(rooms,duties));
+
+        //console.log(weekInfo);
+        //console.log(MapRoomsToDuty(rooms,duties))
+
+        var roster = {
+            // weekNumber: weekInfo.weekNumber,
+            Week: `${weekInfo.startDateWeek} - ${weekInfo.endDateWeek}`,
+            // startDateWeek: weekInfo.startDateWeek,
+            // endDateWeek: weekInfo.endDateWeek,
+           // assignedDuties: assignedDuties
+        }
+
+        // for (let key in assignedDuties) {
+        //     //console.log(key, yourobject[key]);
+        //     roster.key = assignedDuties[key];
+        //   }
+
+          for (let [key, value] of Object.entries(assignedDuties)) {
+            // console.log(key, value);
+            roster[key] = value;
+        }
+
+        rosters.push(roster)
+
+
+        // Validation
+        if (isWeekNumberEqualToWeeksInWeekYear(year, weekNumber)) {
+            // reset weeknumber and move to next year
+            weekNumber = 1;
+            year += 1;
+        } else {
+            weekNumber+= 1;
+        }
+        
+        i++;
     }
-  }
+    return rosters;
 }
 
-export default function Home({roster}) {
+function getThisWeekInfo() {
+    // Today Date
+    var today = DateTime.now()
+    var weekNumber = today.weekNumber
+    var year = today.weekYear;
+    var startDateWeek =  today.startOf('week').toLocaleString(DateTime.DATE_MED)
+    var endDateWeek = today.endOf('week').toLocaleString(DateTime.DATE_MED)
+
+    return {
+        today: today,
+        weekNumber: weekNumber,
+        year: year,
+        startDateWeek: startDateWeek,
+        endDateWeek: endDateWeek
+    }  
+}
+
+function getWeekInfoBy(weekNumber, year) {
+    const dt = DateTime.fromObject({
+        weekNumber: weekNumber,
+        weekYear: year
+    })
+    return {
+        weekNumber: dt.weekNumber,
+        year: dt.weekYear,
+        startDateWeek: dt.startOf('week').toLocaleString(DateTime.DATE_MED),
+        endDateWeek: dt.endOf('week').toLocaleString(DateTime.DATE_MED)
+    }
+}
+
+function isWeekNumberEqualToWeeksInWeekYear(year, weekNumber) {
+    return DateTime.local(year).weeksInWeekYear == weekNumber;
+}
+
+// button handler
+function printTable() {
+    var element = document.getElementById("table");
+    const doc = new jsPDF("landscape", )
+    autoTable(doc, { html: element, theme:'grid' })
+
+    doc.save('roster.pdf')
+}
+
+
+export default function Home() {
+    // states
+    const [rosters, setRosters] = useState([])
+    const [assignedRooms, setAssignedRooms] = useState([])
+    const [weeksToGenerateRoster, setWeeksToGenerateRoster] = useState(1)
+
+    // handlers
+    function displayTableOptions() {
+        return (
+            <div>
+                <section id="generate-table">
+                <p className="py-1 text-lg font-extrabold">Rooms assigned in corridor: {assignedRooms.length == 0 ? "Remember to save settings and/or check rooms" : assignedRooms.join(", ")}</p>
+
+
+                <div class="mb-6">
+                    <label for="default-input" class="block mb-2 text-sm font-medium text-gray-900 dark:text-gray-300">Enter number of weeks to print for:</label>
+                    <input required min={1}  onChange={handleWeeksToGenerateRoster} type="number" id="default-input" placeholder="(4 weeks = ~1 Month)" value={weeksToGenerateRoster} class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" />
+                    <p>Note: Randomization only works if there is more rooms assigned than duties. Click on Generate Roster button.</p>
+                </div>
+                
+                <button onClick={generateTable} className="bg-teal-500 hover:bg-teal-700 text-white font-bold py-2 px-4 rounded">Generate Roster</button>
+
+                <button className="mx-4 bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded" onClick={printTable}>Save Table as PDF</button>
+                
+            </section>
+
+            <div className={styles.grid}>
+                { rosters.map((roster, rosterIndex) => (
+                    <RosterCard 
+                    key = {roster["Week"]}
+                    roster = {roster}
+                />
+                )) }
+            </div>
 
 
 
-  const [assignedRooms, setAssignedRooms] = useState(roster[0].assignedRooms)
+            <table id="table" className="table-fixed invisible" >
+                <thead className="text-white">
+                {rosters.map((roster,index) => (
+                    <tr key={index} className="bg-teal-400">
+                    {headers.map((header,index) => (
+                            <th className="p-3 text-center" key={index} >{header.replaceAll("_", " ")}</th>
+                        ))
+                        }
+                    </tr>
+                ))}
+                </thead>
+                <tbody className="">
+                    { 
+                        rosters.map((roster, rosterIndex) => (
+                            <tr key={roster["Week"]} className="flex flex-col flex-no wrap sm:table-row mb-2 sm:mb-0">
+                                <td className="text-center text-sm border-grey-light border hover:bg-gray-100">{roster["Week"]}</td>
+                                <td className="font-bold text-center border-grey-light border hover:bg-gray-100 p-3">{roster["Disposal_Waste"]}</td>
+                                <td className="font-bold text-center border-grey-light border hover:bg-gray-100 p-3">{roster["Plastic_Waste"]}</td>
+                                <td className="font-bold text-center border-grey-light border hover:bg-gray-100 p-3">{roster["Dishes_and_Surfaces"]}</td>
+                                <td className="font-bold text-center border-grey-light border hover:bg-gray-100 p-3">{roster["Floor_Cleaning"]}</td>
+                                <td className="font-bold text-center border-grey-light border hover:bg-gray-100 p-3">{roster["Metal_and_Glass"]}</td>
+                            </tr>
+                         ) )
+                    }
+                </tbody>
+            </table>
+            </div>
+        )
+    }
+
+    function displayRosterSettings() {
+        return (
+            <section id="settings">
+                <RosterSettings OnSaveSettings={getAssignedRooms} />
+            </section>
+        )
+    }
+
+    function generateTable() {
+        if(weeksToGenerateRoster <= 0) {
+            alert("Why you gotta do that? Stay Positive!")
+        } else {
+            setRosters(getAssignedDutyby(weeksToGenerateRoster))    
+        }
+        
+    }
+
+    function handleWeeksToGenerateRoster(event) {
+        const val = event.target.value;
+        setWeeksToGenerateRoster(val);
+        
+    }
+
+    function getAssignedRooms(data) {
+        // console.log(data)
+        rooms = data;
+
+        if(data.length == 0) {
+            alert("YOU MAD BRO?")
+        }
+
+        setAssignedRooms([...data])
+        
+    }
 
 
-  return (
-    <div className={styles.container}>
-      <Head>
-        <title>Roster App</title>
-        <meta name="description" content="Generated by create next app" />
-        <link rel="icon" href="/favicon.ico" />
-      </Head>
 
-      <main className={styles.main}>
-        <h1 className={styles.title}>
-          Welcome to <a href="https://nextjs.org">Kitchen</a>
-        </h1>
+    return (
+        <div className={styles.container}>
 
-        <p className={styles.description}>
-          Lets do our part to keep our kitchen tidy and clean!
-        </p>
+            <main className={styles.main}>
 
-        <p> {assignedRooms.join(", ")}</p>
+                <h1 className={styles.title}>Welcome to <a href="https://www.youtube.com/watch?v=v8_7yPocGPg">Lappis Kitchen Roster Planning</a></h1>
+                <p className="py-3 text-center">How it works: <br/>Start by checking room numbers to assign duty.<br/>Followed by inputting # of weeks to generate roster. <br/> Save as PDF.</p>
+                {assignedRooms.length > 0 ? displayTableOptions() : displayRosterSettings()}
 
-        {/* <button onClick={() => {}} 
-          className='bg-transparent hover:bg-blue-500 text-blue-700 font-semibold hover:text-white py-2 px-4 border border-blue-500 hover:border-transparent rounded'>Add following week</button> */}
+            </main>
 
-        {/* <SettingModal
-          assignedRooms = {assignedRooms}
-          saveAssignedRooms = {saveAssignedRooms}
-         /> */}
 
-        <div className={styles.grid}>
-          {
-            roster.map((item, index) => (
-              <DutyCard 
-                key = {item.weekNum}
-                weekNum = {item.weekNum}
-                year = {item.year}
-                duty = {item.DutyRooms}
-              />
-            ))
-          }
+            <footer className={styles.footer}>
+                <p>Powered by friendly neighbor from Singapore 🇸🇬</p>
+            </footer>
+           
         </div>
-
-        
-
-        
-        
-      </main>
-
-      <footer className={styles.footer}>
-       <p>Powered by friendly 1208</p>
-      </footer>
-    </div>
-  )
+    )
 }
-
-//TODO:
-
-
-// const rooms = [1,2,3,6,7,8,9,10,11,12]
-
-// helper function to randomise
-// using  Fisher-Yates shuffle
-// function shuffle(array) {
-//   for (let i = array.length - 1; i > 0; i--) {
-//     let j = Math.floor(Math.random() * (i + 1));
-//     [array[i], array[j]] = [array[j], array[i]];
-//   }
-// }
-
-// since there is 10rooms and 5 duties, if follow sequentially, duties will be performed by same people biweekly 
-  // feedback: people want it randomise
-
-// if length(rooms) < 10 || > 10, follow duties sequentially
-
-// if length(rooms) == 10
-
-// const firstHalf = rooms.slice(0,5)
-// const lastHalf = rooms.slice(5, 10)
-
-// console.log(firstHalf)
-// console.log(lastHalf)
-
-// shuffle(firstHalf)
-// console.log(firstHalf)
-
-// var assignedDuties = {
-//   "38_2022": [1,2,3,4,6,7],
-//   // Randmoise only take place when there is 10 rooms for 5 duties
-//   "39_2022": // randomise 2nd half here,
-//   "40_2022": // randomise 1st here, ensure room# are not assigned same duties,
-//   "41_2022": // randomise 2nd half, ensure room# are not assigned same duties,
-//   // repeat steps again and again...
-// };
