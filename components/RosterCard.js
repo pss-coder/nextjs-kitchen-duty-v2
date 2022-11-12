@@ -8,6 +8,7 @@ export default function RosterCard({roster}) {
 
     // console.log(getThisWeekInfo().weekNumber + 1, weekNum)
 
+
     return (
         <div className={styles.card}>
               <div className="font-bold text-sm mb-2">
@@ -15,19 +16,39 @@ export default function RosterCard({roster}) {
               </div>
 
               <p className="text-sm">
-                Disposal Waste : {roster["Disposal_Waste"]}
+              Mop and Wipe the floor : {roster["Mop and Wipe the floor"]}
               </p>
               <p className="text-sm">
-              Plastic & Paper	 : {roster["Plastic_Waste"]}
+              Empty Paper Bin	 : {roster["Empty Paper Bin"]}
               </p>
               <p className="text-sm">
-              Dishes and Surfaces : {roster["Dishes_and_Surfaces"]}
+              Empty Plastic Bin : {roster["Empty Plastic Bin"]}
               </p>
               <p className="text-sm">
-              Floor Cleaning : {roster["Floor_Cleaning"]}
+              Empty Domestic Waste : {roster["Empty Domestic Waste"]}
               </p>
               <p className="text-sm">
-              Metal & Glass : {roster["Metal_and_Glass"]}
+              Empty Metal and Glass : {roster["Empty Metal and Glass"]}
+              </p>
+
+              <p className="text-sm">
+              Supervise tables : {roster["Supervise tables"]}
+              </p>
+
+              <p className="text-sm">
+              Supervise stoves : {roster["Supervise stoves"]}
+              </p>
+
+              <p className="text-sm">
+              Supervise drying rack : {roster["Supervise drying rack"]}
+              </p>
+
+              <p className="text-sm">
+              Supervise cleaning tools(to top up) : {roster["Supervise cleaning tools ( to top up )"]}
+              </p>
+
+              <p className="text-sm">
+              Supervise counters and sinks : {roster["Supervise counters and sinks"]}
               </p>
           </div>
     )
