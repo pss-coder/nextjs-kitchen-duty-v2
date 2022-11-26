@@ -74,6 +74,9 @@ function getAssignedDutyby(numberOfWeeks) {
     while(i != numberOfWeeks) {
         // for every iteration, add to week number and year
         const weekInfo = getWeekInfoBy(weekNumber, year);
+
+        // Push assignment room <- to break sequential order
+        ++counter;
         var assignedDuties = Object.fromEntries(MapRoomsToDuty(rooms,duties));
 
         //console.log(weekInfo);
